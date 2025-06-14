@@ -17,17 +17,20 @@ This project works with python as base front-end as well as back-end. Python als
 ## 📦 Installation
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/your-repo-name.git 
+git clone https://github.com/Angad2005/ChatPDF.git
 
 # Navigate to the directory
-cd your-repo-name
+cd ChatPDF
+
+# Optional: Create and activate a virtual environment
+python3 -m venv env          # Create virtual environment
+source env/bin/activate      # On Windows use: .\env\Scripts\activate
 
 # Install dependencies
-npm install  # or pip install -r requirements.txt
-
-
-
+pip install -r requirements.txt
 ```
+
+
 
 ## License
 
