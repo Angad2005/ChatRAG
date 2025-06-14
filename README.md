@@ -15,6 +15,7 @@ This project works with python as base front-end as well as back-end. Python als
 - 📊 Customizable LLMs data and can be used for other file types and files.
 
 ## 📦 Installation
+- Recommended to run on WSL(Windows Subsystem for Linux) or Linux distro for best CORS(Cross-Origin Resouce Sharing) experience as Windows CORS maybe limited according to user customisation and settings.
 ```bash
 # Clone the repository
 git clone https://github.com/Angad2005/ChatPDF.git
