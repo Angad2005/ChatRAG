@@ -28,9 +28,30 @@ source env/bin/activate      # On Windows use: .\env\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
+
+#Run tool
+streamlit run main.py
+
+# Optional: Change file type for advance data processing in code
+# File upload
+    pdf_docs = st.file_uploader(
+        "Upload PDF(s)",
+        type="pdf",
+        accept_multiple_files=True
+    )
 ```
 
+## Exmple of LLM endpoints
 
+## LM studio
+LLM_BACKEND=lmstudio  
+LMSTUDIO_API_KEY=your_lmstudio_api_key  # Usually "EMPTY" if authentication is disabled  
+LMSTUDIO_ENDPOINT=http://localhost:1234/v1  
+
+## Ollama
+LLM_BACKEND=ollama  
+OLLAMA_HOST=http://localhost:11434  
+OLLAMA_MODEL=llama3  # Replace with your desired model name (e.g., "mistral", "phi3")  
 
 ## License
 
