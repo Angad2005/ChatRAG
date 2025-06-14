@@ -39,6 +39,15 @@ streamlit run main.py
         type="pdf",
         accept_multiple_files=True
     )
+
+# Change API endpoints in models.py file
+# OpenAI for direct API integration
+def get_llm():
+    return OpenAI(
+        openai_api_key="not-needed",
+        openai_api_base="http://192.168.29.31:1234/v1",
+        model_name="lmstudio-ai/your-model-name"
+    )
 ```
 
 ## Exmple of LLM endpoints
