@@ -1,8 +1,6 @@
 # 🚀 ChatPDf
 
 > LLM powerwed tool for working your pdfs and other data files locally on your own system or server.
- 
-![License](https://img.shields.io/npm/l/your-package-name.svg) 
 
 ## 📌 Description
 This project works with python as base front-end as well as back-end. Python also connects it to your LLM for easy access. For ease of access this project requires an API or another endpoint like Ollama, Lm studio,....etc.
@@ -14,7 +12,7 @@ This project works with python as base front-end as well as back-end. Python als
 - ✨ Real-time data processing, understanding and advance reasoning.
 - 🚀 Multi-platform support.
 - 🔐 Full security as everything happens locally.
-- 📊 Customizable LLMs data and can be used for other files.
+- 📊 Customizable LLMs data and can be used for other file types and files.
 
 ## 📦 Installation
 ```bash
@@ -26,3 +24,11 @@ cd your-repo-name
 
 # Install dependencies
 npm install  # or pip install -r requirements.txt
+
+
+
+```
+
+## License
+
+This project is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
