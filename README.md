@@ -1,6 +1,9 @@
-# 🚀 ChatPDf
+# 🚀 ChatPDf (PDf Chatbot AI Agent & knowledge Base Injector)
 
 > LLM powerwed tool for working your pdfs and other data files locally on your own system or server.
+
+
+> Also Make Your LLM and other models more Knowledgable using this data injector.
 
 ## 📌 Description
 This project works with python as base front-end as well as back-end. Python also connects it to your LLM for easy access. For ease of access this project requires an API or another endpoint like Ollama, Lm studio,....etc.
