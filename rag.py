@@ -1,164 +1,91 @@
-# # rag.py
-# from langchain.vectorstores import FAISS
-# from langchain.chains import ConversationalRetrievalChain
-# from langchain.memory import ConversationBufferMemory
-# from langchain.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader, CSVLoader, UnstructuredExcelLoader
-# from langchain.text_splitter import RecursiveCharacterTextSplitter
-# from models import get_llm, get_embedding_model
-
-# def create_rag_chain(file_paths):
-#     # Document loading based on file type
-#     docs = []
-#     for path in file_paths:
-#         file_ext = path.lower().split(".")[-1]
-        
-#         if file_ext == "pdf":
-#             loader = PyPDFLoader(path)
-#         elif file_ext == "docx":
-#             loader = Docx2txtLoader(path)
-#         elif file_ext == "txt":
-#             loader = TextLoader(path, encoding="utf-8")
-#         elif file_ext == "csv":
-#             loader = CSVLoader(path)  # Add options as needed
-#         elif file_ext in ["xls", "xlsx"]:
-#             loader = UnstructuredExcelLoader(path)
-#         else:
-#             raise ValueError(f"Unsupported file type: {file_ext}")
-        
-#         docs.extend(loader.load())
-    
-#     # Chunking
-#     text_splitter = RecursiveCharacterTextSplitter(
-#         chunk_size=1000,
-#         chunk_overlap=200
-#     )
-#     chunks = text_splitter.split_documents(docs)
-    
-#     # Vector store creation
-#     vectorstore = FAISS.from_documents(
-#         chunks, 
-#         get_embedding_model()
-#     )
-    
-#     # Save vectorstore locally (optional)
-#     vectorstore.save_local("vectorstore")
-    
-#     # Chain setup
-#     memory = ConversationBufferMemory(
-#         memory_key="chat_history",
-#         return_messages=True
-#     )
-    
-#     retriever = vectorstore.as_retriever(
-#         search_type="similarity",
-#         search_kwargs={"k": 3}
-#     )
-    
-#     return ConversationalRetrievalChain.from_llm(
-#         llm=get_llm(),
-#         retriever=retriever,
-#         memory=memory
-#     )
-
-from langchain.vectorstores import FAISS
-from langchain.chains import ConversationalRetrievalChain
-from langchain.chains.summarize import load_summarize_chain
-from langchain.memory import ConversationBufferMemory
-from langchain.document_loaders import PyMuPDFLoader,PyPDFLoader, Docx2txtLoader, TextLoader, CSVLoader, UnstructuredExcelLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from models import get_llm, get_embedding_model
+# rag.py
 import os
+from models import get_llm, get_embedding_model
+from langchain.chains import create_history_aware_retriever, create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
 
-def create_rag_chain(file_paths):
-    # Note: Cleanup logic has been moved to main.py for session control.
-    
-    # Document loading based on file type
+from langchain_community.vectorstores import FAISS
+# V V V IMPORTED THE NEW, CORRECT LOADER V V V
+from langchain_unstructured import UnstructuredLoader
+from langchain_community.tools import DuckDuckGoSearchRun
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+
+def load_documents(file_paths):
+    """
+    Loads documents using the powerful UnstructuredLoader, which will
+    intelligently apply OCR and other strategies as needed.
+    """
     docs = []
     for path in file_paths:
-        file_ext = os.path.splitext(path)[1].lower()
-        
-        if file_ext == ".pdf":
-            # loader = PyPDFLoader(path)
-            loader = PyMuPDFLoader(path)
-        elif file_ext == ".docx":
-            # loader = Docx2txtLoader(path)
-            loader = Docx2txtLoader(path)
-        elif file_ext == ".txt":
-            loader = TextLoader(path, encoding="utf-8")
-        elif file_ext == ".csv":
-            loader = CSVLoader(path)
-        elif file_ext in [".xls", ".xlsx"]:
-            loader = UnstructuredExcelLoader(path)
-        else:
-            raise ValueError(f"Unsupported file type: {file_ext}")
-        
-        loaded_docs = loader.load()
-        # Add source metadata to each document for better summarization
-        for doc in loaded_docs:
-            doc.metadata["source"] = os.path.basename(path)
-        docs.extend(loaded_docs)
-    
-    # Chunking
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200
-    )
-    chunks = text_splitter.split_documents(docs)
-    
-    # Vector store creation from all chunks
-    vectorstore = FAISS.from_documents(
-        chunks, 
-        get_embedding_model()
-    )
-    
-    # Save vectorstore locally, overwriting with the new combined data
-    vectorstore.save_local("vectorstore")
-    
-    # Chain setup
-    memory = ConversationBufferMemory(
-        memory_key="chat_history",
-        return_messages=True
-    )
-    
-    retriever = vectorstore.as_retriever(
-        search_type="similarity",
-        search_kwargs={"k": 3}
-    )
-    
-    chain = ConversationalRetrievalChain.from_llm(
-        llm=get_llm(),
-        retriever=retriever,
-        memory=memory
-    )
-    
-    return chain, docs
-
-def summarize_documents(docs):
-    """
-    Generates a summary for each unique document source.
-    """
-    docs_by_source = {}
-    for doc in docs:
-        source = doc.metadata.get("source", "Unknown")
-        if source not in docs_by_source:
-            docs_by_source[source] = []
-        docs_by_source[source].append(doc)
-
-    llm = get_llm()
-    chain = load_summarize_chain(llm, chain_type="map_reduce")
-    
-    summaries = {}
-    for source, source_docs in docs_by_source.items():
-        # --> START OF ADDED CODE <--
-        # Check if the document list for this source is empty or contains no actual content
-        if not source_docs or not any(doc.page_content.strip() for doc in source_docs):
-            summaries[source] = "Could not generate summary: No text content could be extracted from this file. It might be a scanned or image-based PDF."
-            continue
-        # --> END OF ADDED CODE <--
         try:
-            summary = chain.run(source_docs)
-            summaries[source] = summary
+            # Use the new UnstructuredLoader
+            loader = UnstructuredLoader(path, mode="single", strategy="auto")
+            docs.extend(loader.load())
         except Exception as e:
-            summaries[source] = f"Could not generate summary due to an error: {e}"
-            
-    return summaries
+            print(f"Error loading document {path}: {e}")
+    return docs
+
+def create_rag_chain(file_paths):
+    """Creates a modern, history-aware RAG chain from a list of file paths."""
+    llm = get_llm()
+    
+    docs = load_documents(file_paths)
+    if not docs: return None
+        
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    splits = text_splitter.split_documents(docs)
+    if not splits: return None
+
+    try:
+        vectorstore = FAISS.from_documents(documents=splits, embedding=get_embedding_model())
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
+    except Exception as e:
+        print(f"Error creating FAISS vector store: {e}")
+        return None
+
+    contextualize_q_prompt = ChatPromptTemplate.from_messages([
+            ("system", "Given a chat history and the latest user question which might reference context in the chat history, formulate a standalone question which can be understood without the chat history. Do NOT answer the question, just reformulate it if needed and otherwise return it as is."),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ])
+    history_aware_retriever = create_history_aware_retriever(llm, retriever, contextualize_q_prompt)
+
+    qa_prompt = ChatPromptTemplate.from_messages([
+            ("system", "You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise.\n\n{context}"),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ])
+    Youtube_chain = create_stuff_documents_chain(llm, qa_prompt)
+
+    rag_chain = create_retrieval_chain(history_aware_retriever, Youtube_chain)
+    return rag_chain
+
+def _parse_llm_response(text: str) -> str:
+    """Parses the LLM response to remove special tokens."""
+    marker = "final<|message|>".strip()
+    if marker in text:
+        return text.split(marker, 1)[1].strip()
+    return text.strip()
+
+def create_web_search_chain():
+    """Creates a chain that gets context from the web and answers questions."""
+    llm = get_llm()
+    search_tool = DuckDuckGoSearchRun()
+
+    prompt = ChatPromptTemplate.from_template(
+        "You are a helpful research assistant. Answer the following question based ONLY on the provided web search context.\n\n"
+        "CONTEXT:\n{context}\n\n"
+        "QUESTION:\n{question}"
+    )
+
+    chain = (
+        RunnablePassthrough.assign(context=(lambda x: search_tool.run(x["question"])))
+        | prompt
+        | llm
+        | StrOutputParser()
+        | RunnableLambda(_parse_llm_response)
+    )
+    return chain

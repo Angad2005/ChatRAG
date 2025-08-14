@@ -1,159 +1,151 @@
-# # main.py
-# import streamlit as st
-# from rag import create_rag_chain
-# import os
-
-# def main():
-#     st.set_page_config(page_title="Document Chat")
-#     st.header("Chat with your Documents 📁")
-    
-#     # File upload (supporting multiple formats)
-#     uploaded_files = st.file_uploader(
-#         "Upload Documents",
-#         type=["pdf", "docx", "txt", "csv", "xlsx"],
-#         accept_multiple_files=True
-#     )
-    
-#     if uploaded_files and "rag_chain" not in st.session_state:
-#         with st.spinner("Processing documents..."):
-#             # Save files temporarily
-#             temp_paths = []
-#             for file in uploaded_files:
-#                 temp_path = f"/tmp/{file.name}"
-#                 with open(temp_path, "wb") as f:
-#                     f.write(file.getvalue())
-#                 temp_paths.append(temp_path)
-            
-#             # Create RAG chain
-#             try:
-#                 st.session_state.rag_chain = create_rag_chain(temp_paths)
-#             except Exception as e:
-#                 st.error(f"Error processing files: {str(e)}")
-#                 # Clean up temp files on error
-#                 for path in temp_paths:
-#                     os.remove(path)
-    
-#     # Chat interface
-#     if "rag_chain" in st.session_state:
-#         user_query = st.text_input("Ask a question about your documents:")
-#         if user_query:
-#             with st.spinner("Thinking..."):
-#                 response = st.session_state.rag_chain({"question": user_query})
-#                 st.write("Answer:", response["answer"])
-
-# if __name__ == "__main__":
-#     main()
-
-
+# main.py
 import streamlit as st
+from rag import create_rag_chain, create_web_search_chain
 import os
-import shutil
-from rag import create_rag_chain, summarize_documents
+import tempfile
+from langchain_core.messages import HumanMessage, AIMessage
 
-# --- Page and Session Initialization ---
-# This MUST be the first Streamlit command.
-st.set_page_config(page_title="Document Chat")
+# --- Page Configuration ---
+st.set_page_config(
+    page_title="Private GPT",
+    page_icon="🤖",
+    layout="wide"
+)
 
-# This part runs only once per new session/browser tab
-if "app_started" not in st.session_state:
-    st.session_state.app_started = True
+# --- Session State Initialization ---
+def initialize_session_state():
+    """Initializes session state variables."""
+    defaults = { "mode": "RAG", "messages": [], "uploaded_file_paths": [], "rag_chain": None, "web_search_chain": None }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+initialize_session_state()
+
+# --- Helper Functions ---
+def reset_rag_chain():
+    """Resets the RAG chain and chat history."""
     st.session_state.rag_chain = None
-    st.session_state.summaries = {}
-    st.session_state.uploaded_files_cache = []
-    st.session_state.show_summary = False
+    st.session_state.messages = []
 
-    # Clean the vector store at the very beginning of a new session
-    if os.path.exists("vectorstore"):
-        with st.spinner("Cleaning up old vector store..."):
-            shutil.rmtree("vectorstore")
-        st.toast("A new session has started. Old documents cleared.")
+def format_chat_history():
+    """Formats chat history for the RAG chain."""
+    history = []
+    for msg in st.session_state.messages:
+        if msg["role"] == "user":
+            history.append(HumanMessage(content=msg["content"]))
+        else:
+            answer_part = msg["content"].split("Sources:")[0].strip()
+            history.append(AIMessage(content=answer_part))
+    return history
 
-def main():
-    st.header("Chat with your Documents 📁")
+def get_source_str(response):
+    """Formats source documents from the 'context' key."""
+    source_docs = response.get("context", [])
+    if not source_docs: return ""
+    
+    sources_set = set()
+    for doc in source_docs:
+        source_name = os.path.basename(doc.metadata.get("source", "Unknown"))
+        page_num = doc.metadata.get("page")
+        source_info = f"{source_name}"
+        if page_num is not None:
+            source_info += f" (page {page_num + 1})"
+        sources_set.add(source_info)
+        
+    return "Sources:\n" + "\n".join([f"- {s}" for s in sorted(list(sources_set))])
 
-    # Sidebar for actions
-    with st.sidebar:
-        st.subheader("Manage Documents")
 
-        uploaded_files = st.file_uploader(
-            "Upload documents to add to the knowledge base",
-            type=["pdf", "docx", "txt", "csv", "xlsx"],
-            accept_multiple_files=True
-        )
+# --- UI Rendering ---
+st.title("🤖 PRIVATE GPT")
 
-        if st.button("Summarize Documents"):
-            if st.session_state.rag_chain:
-                st.session_state.show_summary = True
-            else:
-                st.warning("Please upload and process documents first.")
+# --- Sidebar ---
+with st.sidebar:
+    st.header("Controls")
+    
+    mode = st.radio("**Select Mode**", ("RAG", "Search"), key="mode", on_change=reset_rag_chain)
+    st.markdown("---")
 
-        if st.button("Delete All Documents & Reset"):
-            with st.spinner("Deleting documents and resetting session..."):
-                if os.path.exists("vectorstore"):
-                    shutil.rmtree("vectorstore")
-                # Reset the session state completely
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-                st.success("All documents and chat history have been deleted.")
-                st.rerun()
+    if mode == "RAG":
+        st.subheader("File Management")
+        
+        uploaded_files = st.file_uploader("Upload Your Documents", type=["pdf", "docx", "txt", "csv", "xlsx"], accept_multiple_files=True, label_visibility="collapsed")
 
-    # --- Main Processing Logic ---
-    # Check if the list of uploaded files has changed to avoid reprocessing
-    if uploaded_files and uploaded_files != st.session_state.uploaded_files_cache:
-        st.session_state.uploaded_files_cache = uploaded_files
+        if uploaded_files:
+            if 'temp_dir' not in st.session_state or not os.path.exists(st.session_state.temp_dir):
+                st.session_state.temp_dir = tempfile.mkdtemp(prefix="gpt_files_")
 
-        with st.spinner("Processing documents... This may take a moment."):
-            temp_dir = "/tmp/rag_files"
-            if not os.path.exists(temp_dir):
-                os.makedirs(temp_dir)
-            
-            temp_paths = []
+            new_file_paths = []
             for file in uploaded_files:
-                temp_path = os.path.join(temp_dir, file.name)
+                temp_path = os.path.join(st.session_state.temp_dir, file.name)
                 with open(temp_path, "wb") as f:
                     f.write(file.getvalue())
-                temp_paths.append(temp_path)
+                new_file_paths.append(temp_path)
             
-            try:
-                # Create RAG chain with ALL currently uploaded files in the session
-                rag_chain, docs = create_rag_chain(temp_paths)
-                st.session_state.rag_chain = rag_chain
-                st.session_state.summaries = summarize_documents(docs)
-                st.success(f"{len(uploaded_files)} document(s) processed successfully!")
+            st.session_state.uploaded_file_paths = new_file_paths
+            st.success(f"{len(new_file_paths)} file(s) loaded successfully!")
+            reset_rag_chain()
+        
+        if st.session_state.uploaded_file_paths:
+            st.markdown("**Ingested Files:**")
+            for path in st.session_state.uploaded_file_paths:
+                st.info(f"📄 {os.path.basename(path)}")
             
-            except Exception as e:
-                st.error(f"Error processing files: {str(e)}")
-            
-            finally:
-                # Clean up the temporary directory
-                if os.path.exists(temp_dir):
-                    shutil.rmtree(temp_dir)
+            if st.button("🗑️ Clear All Files"):
+                st.session_state.uploaded_file_paths = []
+                reset_rag_chain()
+                st.rerun()
 
-    # --- UI Display ---
-    if st.session_state.get("show_summary"):
-        st.subheader("Summary of Currently Loaded Documents")
-        if st.session_state.summaries:
-            for filename, summary in st.session_state.summaries.items():
-                with st.expander(f"**{os.path.basename(filename)}**"):
-                    st.write(summary)
-        else:
-            st.info("No summaries available.")
-        # Reset the flag so the summary doesn't show up again on its own
-        st.session_state.show_summary = False
+# --- Main Content Area ---
+if st.session_state.mode == "RAG":
+    st.info("Mode: **RAG** - Chat with your uploaded documents.")
+    
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-    if st.session_state.rag_chain:
-        st.info("Your documents are ready. Ask a question below.")
-        user_query = st.text_input("Ask a question about your documents:")
-        if user_query:
-            with st.spinner("Thinking..."):
-                try:
-                    response = st.session_state.rag_chain({"question": user_query})
-                    st.write("### Answer")
-                    st.write(response["answer"])
-                except Exception as e:
-                    st.error(f"An error occurred: {e}")
-    else:
-        st.info("Upload documents via the sidebar to begin chatting.")
+    if prompt := st.chat_input("Ask a question about your documents..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-if __name__ == "__main__":
-    main()
+        with st.chat_message("assistant"):
+            if not st.session_state.uploaded_file_paths:
+                st.error("Please upload documents before asking questions.")
+            else:
+                if st.session_state.rag_chain is None:
+                    with st.spinner("Processing documents and building RAG chain..."):
+                        try:
+                            st.session_state.rag_chain = create_rag_chain(st.session_state.uploaded_file_paths)
+                        except Exception as e:
+                            st.error(f"Failed to create RAG chain: {e}")
+                
+                if st.session_state.rag_chain:
+                    with st.spinner("Thinking..."):
+                        chat_history = format_chat_history()
+                        response = st.session_state.rag_chain.invoke({"input": prompt, "chat_history": chat_history})
+                        answer = response.get("answer", "Sorry, I couldn't find an answer.")
+                        sources_str = get_source_str(response)
+                        full_response = f"{answer}\n\n{sources_str}".strip()
+                        st.markdown(full_response)
+                        st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+elif st.session_state.mode == "Search":
+    st.info("Mode: **Search** - Search the web for answers.")
+    if st.session_state.web_search_chain is None:
+        st.session_state.web_search_chain = create_web_search_chain()
+
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    if prompt := st.chat_input("Enter your web search query..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        with st.chat_message("assistant"):
+            with st.spinner("Searching the web and synthesizing answer..."):
+                response = st.session_state.web_search_chain.invoke({"question": prompt})
+                st.markdown(response)
+                st.session_state.messages.append({"role": "assistant", "content": response})
