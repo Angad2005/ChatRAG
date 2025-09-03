@@ -10,6 +10,10 @@ This project uses Python for both front-end and back-end, connecting to your LLM
 - Can run on any LLM that your system supports (results may vary from model to model).
 - Read the requirements file to see technologies used.
 
+##Demo
+https://drive.google.com/file/d/1DkBTtHKwj6ADI5ju6SYtKZYwiiBjwpsX/view?usp=sharing
+
+
 ## 🌟 Features
 - ✨ Real-time data processing, understanding, and advanced reasoning.
 - 🚀 Multi-platform support.
