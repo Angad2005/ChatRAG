@@ -25,7 +25,7 @@ def get_llm():
     """Initializes the LLM, with a timeout for requests."""
     return OpenAI(
         openai_api_key="not-needed",
-        openai_api_base="/v1",
+        openai_api_base="http://192.168.96.1:1234/v1",
         model_name="llama-3.2-1b-instruct",
         
     )

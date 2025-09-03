@@ -147,21 +147,21 @@ def create_rag_chain(file_paths):
     return chain, docs
 
 # The summarize_documents function does not need any changes.
-def summarize_documents(docs):
-    docs_by_source = {}
-    for doc in docs:
-        source = doc.metadata.get("source", "Unknown")
-        if source not in docs_by_source:
-            docs_by_source[source] = ""
-        docs_by_source[source] += doc.page_content + "\n"
+# def summarize_documents(docs):
+#     docs_by_source = {}
+#     for doc in docs:
+#         source = doc.metadata.get("source", "Unknown")
+#         if source not in docs_by_source:
+#             docs_by_source[source] = ""
+#         docs_by_source[source] += doc.page_content + "\n"
 
-    payload = {"documents": docs_by_source}
+#     payload = {"documents": docs_by_source}
 
-    try:
-        response = requests.post(MCP_SUMMARY_ENDPOINT, json=payload, timeout=60)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        raise ConnectionError(
-            f"Could not connect to the summarization service (MCP) at {MCP_SUMMARY_ENDPOINT}."
-        ) from e
+#     try:
+#         response = requests.post(MCP_SUMMARY_ENDPOINT, json=payload, timeout=60)
+#         response.raise_for_status()
+#         return response.json()
+#     except requests.exceptions.RequestException as e:
+#         raise ConnectionError(
+#             f"Could not connect to the summarization service (MCP) at {MCP_SUMMARY_ENDPOINT}."
+#         ) from e
