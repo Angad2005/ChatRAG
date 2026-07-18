@@ -1,409 +1,236 @@
-# # main.py
-# import streamlit as st
-# import os
-# import shutil
-# from rag import create_rag_chain, summarize_documents
-
-# # --- Page and Session Initialization ---
-# st.set_page_config(page_title="Document Chat")
-
-# # This part runs only once per new session/browser tab
-# if "app_started" not in st.session_state:
-#     st.session_state.app_started = True
-#     st.session_state.rag_chain = None
-#     st.session_state.summaries = {}
-#     st.session_state.uploaded_files_cache = []
-#     st.session_state.show_summary = False
-#     st.session_state.uploader_key = 0  # Initialize the key for the file uploader
-
-#     # Clean the vector store at the very beginning of a new session
-#     if os.path.exists("vectorstore"):
-#         shutil.rmtree("vectorstore")
-#         st.toast("A new session has started. Old documents cleared.")
-
-# def reset_session():
-#     """Callback function to reset the session and clear the file uploader."""
-#     st.session_state.rag_chain = None
-#     st.session_state.summaries = {}
-#     st.session_state.uploaded_files_cache = []
-#     st.session_state.show_summary = False
-    
-#     # Increment the key to force the file_uploader to re-render as a new widget
-#     st.session_state.uploader_key += 1
-    
-#     if os.path.exists("vectorstore"):
-#         shutil.rmtree("vectorstore")
-    
-#     st.success("All documents and chat history have been deleted.")
-
-# def main():
-#     st.header("Chat with your Documents 📁")
-
-#     # Sidebar for actions
-#     with st.sidebar:
-#         st.subheader("Manage Documents")
-
-#         # --> MODIFIED CODE: Use the session state key for the file uploader <--
-#         uploaded_files = st.file_uploader(
-#             "Upload documents to add to the knowledge base",
-#             type=["pdf", "docx", "txt", "csv", "xlsx"],
-#             accept_multiple_files=True,
-#             key=f"uploader_{st.session_state.uploader_key}"
-#         )
-
-#         if st.button("Summarize Documents"):
-#             if st.session_state.get("rag_chain"):
-#                 st.session_state.show_summary = True
-#             else:
-#                 st.warning("Please upload and process documents first.")
-        
-#         # --> MODIFIED CODE: The on_click now points to the improved reset function <--
-#         st.button("Delete All Documents & Reset", on_click=reset_session)
-
-#     # --- Main Processing Logic ---
-#     if uploaded_files and uploaded_files != st.session_state.get("uploaded_files_cache"):
-#         st.session_state.uploaded_files_cache = uploaded_files
-
-#         with st.spinner("Processing documents... This may take a moment. If Response not there in 1 minute then issue with API or endpoint configuration."):
-#             temp_dir = "/tmp/rag_files"
-#             if not os.path.exists(temp_dir):
-#                 os.makedirs(temp_dir)
-            
-#             temp_paths = []
-#             for file in uploaded_files:
-#                 temp_path = os.path.join(temp_dir, file.name)
-#                 with open(temp_path, "wb") as f:
-#                     f.write(file.getvalue())
-#                 temp_paths.append(temp_path)
-            
-#             try:
-#                 rag_chain, docs = create_rag_chain(temp_paths)
-#                 st.session_state.rag_chain = rag_chain
-#                 st.session_state.summaries = summarize_documents(docs)
-#                 st.success(f"{len(uploaded_files)} document(s) processed successfully!")
-            
-#             except Exception as e:
-#                 st.error(f"Error processing files: {str(e)}")
-            
-#             finally:
-#                 if os.path.exists(temp_dir):
-#                     shutil.rmtree(temp_dir)
-
-#     # --- UI Display ---
-#     if st.session_state.get("show_summary"):
-#         st.subheader("Summary of Currently Loaded Documents")
-#         if st.session_state.get("summaries"):
-#             for filename, summary in st.session_state.summaries.items():
-#                 with st.expander(f"**{os.path.basename(filename)}**"):
-#                     st.write(summary)
-#         else:
-#             st.info("No summaries available.")
-#         st.session_state.show_summary = False
-
-#     if st.session_state.get("rag_chain"):
-#         st.info("Your documents are ready. Ask a question below.")
-#         user_query = st.text_input("Ask a question about your documents:")
-#         if user_query:
-#             with st.spinner("Thinking..."):
-#                 try:
-#                     response = st.session_state.rag_chain({"question": user_query})
-#                     st.write("### Answer")
-#                     st.write(response["answer"])
-#                 except Exception as e:
-#                     st.error(f"An error occurred: {e}")
-#     else:
-#         st.info("Upload documents via the sidebar to begin chatting. Testing and API configuration is user dependent.")
-
-# if __name__ == "__main__":
-#     main()
-
-# # main.py
-# import streamlit as st
-# import os
-# import shutil
-# from rag import create_rag_chain, summarize_documents
-# from models import verify_llm_model_availability
-
-# st.set_page_config(page_title="Document Chat")
-
-# if "app_started" not in st.session_state:
-#     st.session_state.app_started = True
-#     st.session_state.rag_chain = None
-#     st.session_state.summaries = {}
-#     st.session_state.uploaded_files_cache = []
-#     st.session_state.show_summary = False
-#     st.session_state.uploader_key = 0
-#     st.session_state.docs = [] # Keep track of loaded docs for summarization
-
-#     if os.path.exists("vectorstore"):
-#         shutil.rmtree("vectorstore")
-#         st.toast("A new session has started. Old documents cleared.")
-
-# def reset_session():
-#     st.session_state.rag_chain = None
-#     st.session_state.summaries = {}
-#     st.session_state.uploaded_files_cache = []
-#     st.session_state.show_summary = False
-#     st.session_state.uploader_key += 1
-#     st.session_state.docs = []
-#     if os.path.exists("vectorstore"):
-#         shutil.rmtree("vectorstore")
-#     st.success("All documents and chat history have been deleted.")
-
-# def main():
-#     st.header("Chat with your Documents 📁")
-
-#     with st.sidebar:
-#         st.subheader("Manage Documents")
-#         uploaded_files = st.file_uploader(
-#             "Upload documents",
-#             type=["pdf", "docx", "txt", "csv", "xlsx"],
-#             accept_multiple_files=True,
-#             key=f"uploader_{st.session_state.uploader_key}"
-#         )
-
-#         # --> START OF MODIFIED CODE <--
-#         # This button now triggers the summarization call to the MCP
-#         if st.button("Summarize Documents"):
-#             if st.session_state.get("docs"):
-#                 with st.spinner("Generating summaries via MCP..."):
-#                     try:
-#                         # Call the new MCP-based summarization function
-#                         st.session_state.summaries = summarize_documents(st.session_state.docs)
-#                         st.session_state.show_summary = True
-#                     except Exception as e:
-#                         st.error(f"Failed to get summaries: {e}")
-#             else:
-#                 st.warning("Please upload and process documents first.")
-#         # --> END OF MODIFIED CODE <--
-        
-#         st.button("Delete All Documents & Reset", on_click=reset_session)
-
-#     if uploaded_files and uploaded_files != st.session_state.get("uploaded_files_cache"):
-#         st.session_state.uploaded_files_cache = uploaded_files
-#         with st.spinner("Processing documents..."):
-#             temp_dir = "/tmp/rag_files"
-#             os.makedirs(temp_dir, exist_ok=True)
-            
-#             temp_paths = [os.path.join(temp_dir, f.name) for f in uploaded_files]
-#             for file, path in zip(uploaded_files, temp_paths):
-#                 with open(path, "wb") as f:
-#                     f.write(file.getvalue())
-            
-#             try:
-#                 rag_chain, docs = create_rag_chain(temp_paths)
-#                 with st.spinner("Verifying language model connection..."):
-#                     llm_client = rag_chain.combine_docs_chain.llm_chain.llm
-#                     verify_llm_model_availability(llm_client)
-                
-#                 st.session_state.rag_chain = rag_chain
-#                 st.session_state.docs = docs  # Save the docs for on-demand summarization
-#                 # --> REMOVED: No longer summarizing on initial processing <--
-#                 # st.session_state.summaries = summarize_documents(docs) 
-#                 st.success(f"{len(uploaded_files)} document(s) processed successfully!")
-            
-#             except Exception as e:
-#                 st.error(f"An error occurred: {str(e)}")
-            
-#             finally:
-#                 if os.path.exists(temp_dir):
-#                     shutil.rmtree(temp_dir)
-
-#     # --- UI Display (No changes below this line) ---
-#     if st.session_state.get("show_summary"):
-#         st.subheader("Summary of Currently Loaded Documents")
-#         if st.session_state.get("summaries"):
-#             for filename, summary in st.session_state.summaries.items():
-#                 with st.expander(f"**{os.path.basename(filename)}**"):
-#                     st.write(summary)
-#         else:
-#             st.info("No summaries available or an error occurred.")
-#         st.session_state.show_summary = False
-
-#     if st.session_state.get("rag_chain"):
-#         st.info("Your documents are ready. Ask a question below.")
-#         user_query = st.text_input("Ask a question about your documents:")
-#         if user_query:
-#             with st.spinner("Thinking..."):
-#                 try:
-#                     retriever = st.session_state.rag_chain.retriever
-#                     relevant_docs = retriever.get_relevant_documents(user_query)
-#                     if not relevant_docs:
-#                         st.write("### Answer")
-#                         st.warning("I could not find an answer in the documents. Please try rephrasing.")
-#                     else:
-#                         response = st.session_state.rag_chain({"question": user_query})
-#                         st.write("### Answer")
-#                         st.write(response["answer"])
-#                 except Exception as e:
-#                     st.error(f"An error occurred during generation: {e}")
-#     else:
-#         st.info("Upload documents via the sidebar to begin chatting.")
-
-# if __name__ == "__main__":
-#     main()
-
-
-
-# main.py
 import streamlit as st
+from models import get_embedding_model, get_llm, verify_llm_model_availability, DEFAULT_API_BASE, DEFAULT_API_KEY, DEFAULT_MODEL_NAME
+from langchain_community.vectorstores import FAISS
+from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_classic.chains.retrieval_qa.base import RetrievalQA
+from langchain_core.prompts import PromptTemplate
+import tempfile
 import os
-import shutil
-import requests
-from rag import create_rag_chain
-from models import verify_llm_model_availability
 
-# --- Configuration ---
-MCP_SUMMARY_ENDPOINT = "http://127.0.0.1:8001/summarize-and-create-document/"
+# Page config
+st.set_page_config(page_title="ChatRAG", page_icon="💬", layout="wide")
 
-# --- Page and Session Initialization ---
-st.set_page_config(page_title="Document Chat")
+# Custom CSS
+st.markdown("""
+<style>
+    .stTextInput > div > div > input {
+        background-color: #f0f2f6;
+    }
+    .sidebar .sidebar-content {
+        background-color: #f8f9fa;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-if "app_started" not in st.session_state:
-    st.session_state.app_started = True
-    st.session_state.rag_chain = None
-    st.session_state.uploaded_files_cache = []
-    st.session_state.uploader_key = 0
-    st.session_state.docs = []
-    st.session_state.chat_input = ""
-    st.session_state.summary_data = None # Will hold data for the download button
-
-    if os.path.exists("vectorstore"):
-        shutil.rmtree("vectorstore")
-
-def reset_session():
-    st.session_state.rag_chain = None
-    st.session_state.uploaded_files_cache = []
-    st.session_state.uploader_key += 1
-    st.session_state.docs = []
-    st.session_state.chat_input = ""
-    st.session_state.summary_data = None # Clear summary data on reset
-    if os.path.exists("vectorstore"):
-        shutil.rmtree("vectorstore")
-    st.success("All documents and chat history have been deleted.")
-
-def main():
-    st.header("Chat with your Documents 📁")
-
-    with st.sidebar:
-        st.subheader("Manage Documents")
-        uploaded_files = st.file_uploader(
-            "Upload documents",
-            type=["pdf", "docx", "txt", "csv", "xlsx"],
-            accept_multiple_files=True,
-            key=f"uploader_{st.session_state.uploader_key}"
-        )
-
-        st.subheader("Actions")
+# Sidebar Configuration
+with st.sidebar:
+    st.title("⚙️ Configuration")
+    st.divider()
+    
+    # LLM Configuration
+    st.subheader("🤖 LLM Settings")
+    
+    api_base = st.text_input(
+        "API Base URL",
+        value=st.session_state.get("api_base", DEFAULT_API_BASE),
+        placeholder="http://localhost:1234/v1",
+        help="LM Studio / vLLM / OpenAI-compatible API endpoint"
+    )
+    
+    api_key = st.text_input(
+        "API Key",
+        value=st.session_state.get("api_key", DEFAULT_API_KEY),
+        placeholder="sk-... or not-needed",
+        type="password",
+        help="API key (use 'not-needed' for local LM Studio)"
+    )
+    
+    model_name = st.text_input(
+        "Model Name",
+        value=st.session_state.get("model_name", DEFAULT_MODEL_NAME),
+        placeholder="llama-3.2-1b-instruct",
+        help="Exact model name as shown in LM Studio / vLLM"
+    )
+    
+    # Save to session state
+    if st.button("💾 Save & Connect", type="primary", use_container_width=True):
+        st.session_state.api_base = api_base
+        st.session_state.api_key = api_key
+        st.session_state.model_name = model_name
         
-        # --- MODIFIED: The form now only prepares the data for the download button ---
-        with st.form("summary_form"):
-            doc_type = st.radio("Select summary format:", ('PDF', 'DOCX'))
-            submit_summarize = st.form_submit_button("Create Summary Document")
-
-            if submit_summarize:
-                if st.session_state.get("docs"):
-                    with st.spinner("Requesting summaries from MCP..."):
-                        try:
-                            payload = {
-                                "documents": {doc.metadata['source']: doc.page_content for doc in st.session_state.docs},
-                                "doc_type": doc_type.lower()
-                            }
-                            response = requests.post(MCP_SUMMARY_ENDPOINT, json=payload, timeout=120)
-
-                            if response.status_code == 200:
-                                st.success("Summary document is ready for download below!")
-                                # Store the download data in session state
-                                st.session_state.summary_data = {
-                                    "content": response.content,
-                                    "filename": f"summaries.{doc_type.lower()}",
-                                    "mime": response.headers['Content-Type']
-                                }
-                            else:
-                                st.error(f"Error from MCP: {response.text}")
-                                st.session_state.summary_data = None # Clear on error
-                        
-                        except requests.exceptions.RequestException as e:
-                            st.error(f"Failed to connect to MCP: {e}")
-                            st.session_state.summary_data = None # Clear on error
-                else:
-                    st.warning("Please upload and process documents first.")
-
-        # --- NEW: The download button is now rendered *outside* the form ---
-        # It only appears if there is data ready in the session state.
-        if st.session_state.get("summary_data"):
-            summary_info = st.session_state.summary_data
-            st.download_button(
-                label="Download Summary",
-                data=summary_info["content"],
-                file_name=summary_info["filename"],
-                mime=summary_info["mime"]
-            )
-        
-        st.button("Delete All Documents & Reset", on_click=reset_session, use_container_width=True)
-
-    # --- Main Processing Logic (No changes here) ---
-    if uploaded_files and uploaded_files != st.session_state.get("uploaded_files_cache"):
-        st.session_state.uploaded_files_cache = uploaded_files
-        with st.spinner("Processing documents..."):
-            temp_dir = "/tmp/rag_files"
-            os.makedirs(temp_dir, exist_ok=True)
-            temp_paths = [os.path.join(temp_dir, f.name) for f in uploaded_files]
-            for file, path in zip(uploaded_files, temp_paths):
-                with open(path, "wb") as f: f.write(file.getvalue())
+        # Test connection
+        with st.spinner("Testing connection..."):
             try:
-                rag_chain, docs = create_rag_chain(temp_paths)
-                with st.spinner("Verifying language model..."):
-                    llm_client = rag_chain.combine_docs_chain.llm_chain.llm
-                    verify_llm_model_availability(llm_client)
-                st.session_state.rag_chain = rag_chain
-                st.session_state.docs = docs
-                st.session_state.summary_data = None # Clear old summary when new docs are uploaded
-                st.success(f"{len(uploaded_files)} document(s) processed!")
+                llm = get_llm(api_base, api_key, model_name)
+                verify_llm_model_availability(llm)
+                st.session_state.llm = llm
+                st.session_state.llm_connected = True
+                st.success(f"✅ Connected! Model '{model_name}' is available.")
             except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
-            finally:
-                if os.path.exists(temp_dir): shutil.rmtree(temp_dir)
-
-    # --- Chat UI (No changes here) ---
-    if st.session_state.get("rag_chain"):
-        st.info("Your documents are ready. Ask a question below.")
-        
-        def handle_submit():
-            user_query = st.session_state.chat_input
-            if user_query:
-                with st.spinner("Thinking..."):
-                    try:
-                        retriever = st.session_state.rag_chain.retriever
-                        relevant_docs = retriever.get_relevant_documents(user_query)
-                        if not relevant_docs:
-                            st.write("### Answer")
-                            st.warning("I could not find an answer in the documents.")
-                        else:
-                            response = st.session_state.rag_chain({"question": user_query})
-                            st.write("### Answer")
-                            st.write(response["answer"])
-                    except Exception as e:
-                        st.error(f"An error occurred during generation: {e}")
-        
-        def clear_input():
-            st.session_state.chat_input = ""
-
-        col1, col2, col3 = st.columns([8, 1, 1])
-        with col1:
-            st.text_input(
-                "Ask a question about your documents:", 
-                key="chat_input", 
-                on_change=handle_submit,
-                label_visibility="collapsed"
-            )
-        with col2:
-            st.button("Clear", on_click=clear_input, use_container_width=True)
-        with col3:
-            st.button("Send", on_click=handle_submit, use_container_width=True, type="primary")
-
+                st.session_state.llm_connected = False
+                st.error(f"❌ Connection failed: {e}")
+    
+    # Connection status
+    if st.session_state.get("llm_connected"):
+        st.success(f"🟢 Connected: `{st.session_state.get('model_name')}`")
+    elif "api_base" in st.session_state:
+        st.error("🔴 Not connected")
+    
+    st.divider()
+    
+    # Embedding Model with Download Button
+    st.subheader("📦 Embedding Model")
+    
+    EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+    
+    # Check if model is loaded
+    if "embedding_model" in st.session_state and st.session_state.embedding_model is not None:
+        st.success("✅ Embedding model loaded")
+        if st.button("🔄 Reload Model", use_container_width=True):
+            st.session_state.embedding_model = None
+            st.rerun()
     else:
-        st.info("Upload documents via the sidebar to begin chatting.")
+        st.warning("⚠️ Embedding model not loaded")
+        if st.button("⬇️ Download & Load Model", type="primary", use_container_width=True):
+            with st.spinner(f"Downloading {EMBEDDING_MODEL_NAME} (~90 MB)... This may take a minute on first run."):
+                try:
+                    st.session_state.embedding_model = get_embedding_model()
+                    st.success("✅ Embedding model loaded successfully!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Failed to load model: {e}")
+                    st.info("💡 Check your internet connection to huggingface.co")
+    
+    st.caption(f"Model: `{EMBEDDING_MODEL_NAME}` (local, CPU)")
+    
+    st.divider()
+    
+    # Clear chat
+    if st.button("🗑️ Clear Chat", use_container_width=True):
+        st.session_state.messages = []
+        if "qa_chain" in st.session_state:
+            del st.session_state.qa_chain
+        st.rerun()
 
-if __name__ == "__main__":
-    main()
+# Main area
+st.title("💬 ChatRAG")
+st.caption("Chat with your documents using local LLMs")
+
+# Initialize session state
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# File uploader
+uploaded_files = st.file_uploader(
+    "📄 Upload documents (PDF, DOCX, TXT)",
+    type=["pdf", "docx", "txt"],
+    accept_multiple_files=True,
+    help="Upload one or more documents to chat with"
+)
+
+# Process uploaded files - only if embedding model is loaded
+if uploaded_files and st.session_state.get("llm_connected"):
+    if "embedding_model" not in st.session_state or st.session_state.embedding_model is None:
+        st.warning("⚠️ Please download the embedding model first (sidebar)")
+    elif "qa_chain" not in st.session_state or st.session_state.get("last_files") != [f.name for f in uploaded_files]:
+        with st.spinner("Processing documents..."):
+            # Load documents
+            documents = []
+            for uploaded_file in uploaded_files:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as tmp_file:
+                    tmp_file.write(uploaded_file.getvalue())
+                    tmp_path = tmp_file.name
+                
+                try:
+                    if uploaded_file.name.endswith(".pdf"):
+                        loader = PyPDFLoader(tmp_path)
+                    elif uploaded_file.name.endswith(".docx"):
+                        loader = Docx2txtLoader(tmp_path)
+                    else:
+                        loader = TextLoader(tmp_path)
+                    documents.extend(loader.load())
+                finally:
+                    os.unlink(tmp_path)
+            
+            # Split documents
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+            texts = text_splitter.split_documents(documents)
+            
+            # Create vector store
+            vectorstore = FAISS.from_documents(texts, st.session_state.embedding_model)
+            
+            # Create QA chain
+            prompt_template = """Use the following pieces of context to answer the question at the end. 
+If you don't know the answer, just say that you don't know, don't try to make up an answer.
+
+{context}
+
+Question: {question}
+Answer:"""
+            PROMPT = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
+            
+            st.session_state.qa_chain = RetrievalQA.from_chain_type(
+                llm=st.session_state.llm,
+                chain_type="stuff",
+                retriever=vectorstore.as_retriever(search_kwargs={"k": 3}),
+                chain_type_kwargs={"prompt": PROMPT},
+                return_source_documents=True
+            )
+            st.session_state.last_files = [f.name for f in uploaded_files]
+            st.success(f"✅ Processed {len(uploaded_files)} document(s) into {len(texts)} chunks")
+
+# Display chat messages
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+        if message["role"] == "assistant" and "sources" in message:
+            with st.expander("📚 Sources"):
+                for i, doc in enumerate(message["sources"]):
+                    st.markdown(f"**Source {i+1}:** {doc.page_content[:200]}...")
+
+# Chat input
+if prompt := st.chat_input("Ask a question about your documents..."):
+    if not st.session_state.get("llm_connected"):
+        st.error("⚠️ Please configure and connect to an LLM first (sidebar)")
+    elif "embedding_model" not in st.session_state or st.session_state.embedding_model is None:
+        st.error("⚠️ Please download the embedding model first (sidebar)")
+    elif "qa_chain" not in st.session_state:
+        st.error("⚠️ Please upload at least one document first")
+    else:
+        # Add user message
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        
+        # Generate response
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking..."):
+                try:
+                    result = st.session_state.qa_chain({"query": prompt})
+                    answer = result["result"]
+                    sources = result.get("source_documents", [])
+                    
+                    st.markdown(answer)
+                    
+                    if sources:
+                        with st.expander("📚 Sources"):
+                            for i, doc in enumerate(sources):
+                                st.markdown(f"**Source {i+1}:** {doc.page_content[:300]}...")
+                    
+                    # Add to history
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": answer,
+                        "sources": sources
+                    })
+                except Exception as e:
+                    st.error(f"Error: {e}")
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": f"Error: {e}"
+                    })
+
+# Footer
+st.divider()
+st.caption("💡 Configure your LLM endpoint in the sidebar. Works with LM Studio, vLLM, Ollama (with OpenAI compat), or any OpenAI-compatible API.")

@@ -1,36 +1,62 @@
 # models.py
-from langchain.llms import OpenAI
-from langchain.embeddings import HuggingFaceEmbeddings
-import requests  # <-- Add this import
+from langchain_community.llms import OpenAI
+from langchain_community.embeddings import HuggingFaceEmbeddings
+import requests
+import os
+
+# Default configuration (can be overridden by environment variables or GUI)
+DEFAULT_API_BASE = os.getenv("LLM_API_BASE", "http://192.168.96.1:1234/v1")
+DEFAULT_API_KEY = os.getenv("LLM_API_KEY", "not-needed")
+DEFAULT_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "llama-3.2-1b-instruct")
 
 def get_embedding_model():
-    """Initializes the embedding model, with error handling for download issues."""
+    """Initializes the embedding model, with GPU fallback to CPU."""
+    import torch
+    
+    # Auto-detect device: CUDA > MPS > CPU
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
+    
+    model_name = "sentence-transformers/all-MiniLM-L6-v2"
+    encode_kwargs = {'normalize_embeddings': False}
+    
+    # Try primary device
     try:
-        model_name = "sentence-transformers/all-MiniLM-L6-v2"
-        model_kwargs = {'device': 'cpu'}
-        encode_kwargs = {'normalize_embeddings': False}
-        
+        model_kwargs = {'device': device}
         return HuggingFaceEmbeddings(
             model_name=model_name,
             model_kwargs=model_kwargs,
             encode_kwargs=encode_kwargs
         )
     except Exception as e:
+        # Fallback to CPU if GPU fails
+        if device != "cpu":
+            try:
+                model_kwargs = {'device': 'cpu'}
+                return HuggingFaceEmbeddings(
+                    model_name=model_name,
+                    model_kwargs=model_kwargs,
+                    encode_kwargs=encode_kwargs
+                )
+            except Exception:
+                pass
         raise ConnectionError(
             "Failed to download or load embedding model. "
             "Please check internet connection to huggingface.co."
         ) from e
 
-def get_llm():
-    """Initializes the LLM, with a timeout for requests."""
+def get_llm(api_base=None, api_key=None, model_name=None):
+    """Initializes the LLM with configurable parameters."""
     return OpenAI(
-        openai_api_key="not-needed",
-        openai_api_base="http://192.168.96.1:1234/v1",
-        model_name="llama-3.2-1b-instruct",
-        
+        openai_api_key=api_key or DEFAULT_API_KEY,
+        openai_api_base=api_base or DEFAULT_API_BASE,
+        model_name=model_name or DEFAULT_MODEL_NAME,
     )
 
-# --> START OF ADDED CODE <--
 def verify_llm_model_availability(llm_client: OpenAI):
     """
     Verifies that the specified model is available at the API endpoint.
@@ -66,4 +92,3 @@ def verify_llm_model_availability(llm_client: OpenAI):
     except Exception as e:
         # Re-raise other exceptions with context
         raise RuntimeError(f"An unexpected error occurred while verifying the LLM model: {e}") from e
-# --> END OF ADDED CODE <--
