@@ -1,14 +1,15 @@
 # 🚀 ChatRAG (Chatbot AI Agent & Knowledge Base Injector)
 
-> LLM-powered tool for working with your data files locally on your own system or server. Also makes your LLM and other models more knowledgeable using this data injector.
+> LLM-powered tool for working with your data files locally on your own system or server. Makes your LLM more knowledgeable using document injection.
 
 ## 📌 Description
 
-This project uses Python for both front-end and back-end, connecting to your LLM for easy access. For ease of access, this project requires an API or another endpoint like Ollama, LM Studio, etc.
+This project uses Python for both front-end (Streamlit) and back-end, connecting to any OpenAI-compatible LLM endpoint (LM Studio, vLLM, Ollama, NVIDIA NIM, OpenAI, etc.).
 
-- Users can access their personal private files on their own local systems using LLMs for fast understanding and advanced reasoning.
-- Can run on any LLM that your system supports (results may vary from model to model).
-- Read the requirements file to see technologies used.
+- Chat with your personal private files using LLMs for fast understanding and advanced reasoning
+- Runs on any OpenAI-compatible LLM backend (results vary by model)
+- GPU-accelerated embeddings with auto CUDA/MPS/CPU detection
+- No runtime downloads — models pre-cached locally
 
 ## 📦 Installation
 
@@ -18,10 +19,11 @@ This project uses Python for both front-end and back-end, connecting to your LLM
    cd ChatPDF
    ```
 
-2. **Optional: Create and activate a virtual environment**
+2. **Create and activate a virtual environment** (recommended)
    ```bash
-   python3 -m venv env          # Create virtual environment
-   source env/bin/activate      # On Windows use: .\env\Scripts\activate
+   python3 -m venv van1
+   source van1/bin/activate      # Linux/Mac
+   # .\van1\Scripts\activate     # Windows
    ```
 
 3. **Install dependencies**
@@ -29,119 +31,125 @@ This project uses Python for both front-end and back-end, connecting to your LLM
    pip install -r requirements.txt
    ```
 
-4. **Install additional dependencies for the MCP service**
+4. **Install PyTorch with CUDA support** (for GPU embeddings)
    ```bash
-   pip install uvicorn
+   pip install torch --index-url https://download.pytorch.org/whl/cu121
    ```
+
+5. **Pre-download the embedding model** (one-time, requires internet)
+   ```bash
+   python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+   ```
+   This caches `~90 MB` to `~/.cache/huggingface/hub/`. Set `HF_HOME` to change cache location.
 
 ## 🐳 Usage
 
-### Step 1: Start the MCP Summarization Service (Required for summary generation)
+### Step 1: Start the MCP Summarization Service (optional, for summary generation)
 ```bash
-# In a separate terminal window/tab:
+# In a separate terminal:
 uvicorn mcp_main:app --host 127.0.0.1 --port 8001
-```
-You should see output indicating the server is running, including:
-```
-INFO:     Uvicorn running on http://127.0.0.1:8001 (Press CTRL+C to quit)
 ```
 
 ### Step 2: Start the Streamlit Application
 ```bash
-# In another terminal window/tab (after activating the virtual environment if used):
-streamlit run main.py
+# Disable file watcher to avoid transformers import errors
+STREAMLIT_SERVER_FILE_WATCHER_TYPE=none streamlit run main.py
 ```
-The application will open in your default web browser at http://localhost:8501.
+The application opens at `http://localhost:8501`.
 
 ### Step 3: Use the Application
-1. **Upload Documents**: Use the file uploader in the sidebar to add PDF, DOCX, TXT, CSV, or XLSX files.
-2. **Process Documents**: After uploading, click "Process" (automatic) or wait for the processing spinner.
-3. **Ask Questions**: Once processed, ask questions about your documents in the chat input.
-4. **Generate Summaries**: 
-   - In the sidebar, select "Summary Format" (PDF or DOCX)
-   - Click "Create Summary Document"
-   - Wait for the confirmation, then click "Download Summary" to get your summarized document.
-5. **Reset**: Click "Delete All Documents & Reset" to clear the workspace and start over.
+
+1. **Configure LLM** (Sidebar → 🤖 LLM Settings):
+   - **API Base URL**: `http://localhost:1234/v1` (LM Studio), `http://localhost:8000/v1` (vLLM), `http://localhost:11434/v1` (Ollama), `https://integrate.api.nvidia.com/v1` (NVIDIA NIM)
+   - **API Key**: `not-needed` (local) or your API key (cloud)
+   - **Model Name**: Exact model ID from your server (e.g., `llama-3.2-1b-instruct`, `meta/llama-3.1-8b-instruct`)
+   - Click **💾 Save & Connect** — tests `/v1/models` endpoint
+
+2. **Load Embedding Model** (Sidebar → 📦 Embedding Model):
+   - Click **📂 Load from Cache** — loads `sentence-transformers/all-MiniLM-L6-v2` from local cache
+   - Auto-detects GPU (CUDA/MPS) with CPU fallback
+   - Shows cache path and device in UI
+
+3. **Upload Documents**: PDF, DOCX, TXT via sidebar file uploader
+
+4. **Ask Questions**: Chat with your documents in the main area
+
+5. **Generate Summaries** (requires MCP service):
+   - Select format (PDF/DOCX)
+   - Click **Create Summary Document**
+   - Download the result
+
+6. **Reset**: **🗑️ Clear Chat** clears history and vector store
 
 ## ⚙️ Configuration
 
-### LLM Backend Configuration
-Edit `models.py` to set your LLM backend:
+### LLM Backend (via Sidebar GUI — no code edits needed)
 
-#### LM Studio Example
-```python
-def get_llm():
-    return OpenAI(
-        openai_api_key="not-needed",
-        openai_api_base="http://localhost:1234/v1",
-        model_name="lmstudio-ai/your-model-name"
-    )
-```
+| Backend | API Base URL | API Key | Example Model Name |
+|---------|--------------|---------|-------------------|
+| LM Studio | `http://localhost:1234/v1` | `not-needed` | `llama-3.2-1b-instruct` |
+| vLLM | `http://localhost:8000/v1` | `not-needed` | `meta-llama/Llama-3.1-8B-Instruct` |
+| Ollama | `http://localhost:11434/v1` | `not-needed` | `llama3.1:8b` |
+| NVIDIA NIM (cloud) | `https://integrate.api.nvidia.com/v1` | your NVIDIA API key | `meta/llama-3.1-8b-instruct` |
+| NVIDIA NIM (local) | `http://localhost:8000/v1` | `not-needed` | `meta/llama-3.1-8b-instruct` |
+| OpenAI | `https://api.openai.com/v1` | `sk-...` | `gpt-4o-mini` |
+| Together AI | `https://api.together.xyz/v1` | your key | `meta-llama/Llama-3.1-8B-Instruct-Turbo` |
 
-#### Ollama Example
-```python
-def get_llm():
-    return OpenAI(
-        openai_api_key="not-needed",
-        openai_api_base="http://localhost:11434/v1",
-        model_name="llama3"
-    )
-```
+The server must implement:
+- `GET /v1/models` — returns `{ "data": [{ "id": "model-name" }, ...] }`
+- `POST /v1/chat/completions` — OpenAI chat completion format
 
-### File Upload Settings
-Edit `main.py` to customize file types:
-```python
-uploaded_files = st.file_uploader(
-    "Upload Documents",
-    type=["pdf", "docx", "txt", "csv", "xlsx"],  # Add/remove formats here
-    accept_multiple_files=True
-)
-```
-
-## 🧩 Supported LLM Backends
-
-### LM Studio
+### Environment Variables (Optional)
 ```bash
-LLM_BACKEND=lmstudio
-LMSTUDIO_API_KEY=your_lmstudio_api_key  # Usually "EMPTY" if authentication is disabled
-LMSTUDIO_ENDPOINT=http://localhost:1234/v1
-```
+# Embedding model cache location
+export HF_HOME=/path/to/cache
 
-### Ollama
-```bash
-LLM_BACKEND=ollama
-OLLAMA_HOST=http://localhost:11434
-OLLAMA_MODEL=llama3  # Replace with your desired model (e.g., "mistral", "phi3")
+# Hugging Face mirror (if blocked)
+export HF_ENDPOINT=https://hf-mirror.com
+
+# LLM defaults (overridden by sidebar)
+export LLM_API_BASE=http://localhost:1234/v1
+export LLM_API_KEY=not-needed
+export LLM_MODEL_NAME=llama-3.2-1b-instruct
 ```
 
 ## 📄 File Format Support
 - PDF (.pdf)
 - Word Document (.docx)
 - Plain Text (.txt)
-- CSV (.csv)
-- Excel (.xlsx)
 
 ## 🔧 Troubleshooting
 
-### MCP Service Not Running
-- Ensure the MCP service is running on `http://127.0.0.1:8001`
-- Check its health with: `curl http://127.0.0.1:8001/health`
-- Should return `{"status":"ok"}`
+### Streamlit file watcher errors (transformers/torch import)
+**Fixed by:** `STREAMLIT_SERVER_FILE_WATCHER_TYPE=none streamlit run main.py`
 
-### Model Loading Issues
-- The MCP service uses `t5-small` for summarization. Ensure you have internet access to download the model on first run.
-- If you encounter rate limits, consider setting a Hugging Face token (`HF_TOKEN` environment variable).
+### Embedding model not found in cache
+Run the pre-download command from Installation step 5. The UI shows the cache path it's checking.
 
-### Streamlit Issues
-- Make sure you're running `streamlit run main.py` from the project directory.
-- If the browser doesn't open automatically, navigate to `http://localhost:8501`.
+### GPU not used
+- Verify CUDA: `python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"`
+- Reinstall PyTorch with CUDA: `pip install torch --index-url https://download.pytorch.org/whl/cu121`
+- The app auto-detects CUDA → MPS → CPU
+
+### LLM connection fails
+- Test endpoint: `curl http://localhost:1234/v1/models`
+- Check model name matches exactly what `/v1/models` returns
+- For LM Studio: Enable "OpenAI Compatible Server" in Settings → Developer
+
+### SSL/Cert errors downloading model
+```bash
+pip install --upgrade certifi
+# Or use mirror:
+HF_ENDPOINT=https://hf-mirror.com python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+```
 
 ## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
 ## 🙏 Acknowledgments
 - [Streamlit](https://streamlit.io/)
 - [LangChain](https://www.langchain.com/)
 - [Hugging Face Transformers](https://huggingface.co/docs/transformers/index)
+- [sentence-transformers](https://www.sbert.net/)
 - [FastAPI](https://fastapi.tiangolo.com/)
+- [PyTorch](https://pytorch.org/)

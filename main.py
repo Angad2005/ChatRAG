@@ -79,10 +79,21 @@ with st.sidebar:
     
     st.divider()
     
-    # Embedding Model with Download Button
+    # Embedding Model - Load from Local Cache Only
     st.subheader("📦 Embedding Model")
     
     EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+    
+    # Show cache status
+    import os
+    hf_cache = os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
+    from pathlib import Path
+    cache_dir = Path(hf_cache) / "hub"
+    model_dirs = list(cache_dir.glob(f"models--{EMBEDDING_MODEL_NAME.replace('/', '--')}--*")) if cache_dir.exists() else []
+    if model_dirs:
+        st.caption(f"📁 Found in cache: `{hf_cache}`")
+    else:
+        st.caption(f"📁 Cache: `{hf_cache}` (not found)")
     
     # Check if model is loaded
     if "embedding_model" in st.session_state and st.session_state.embedding_model is not None:
@@ -92,17 +103,33 @@ with st.sidebar:
             st.rerun()
     else:
         st.warning("⚠️ Embedding model not loaded")
-        if st.button("⬇️ Download & Load Model", type="primary", use_container_width=True):
-            with st.spinner(f"Downloading {EMBEDDING_MODEL_NAME} (~90 MB)... This may take a minute on first run."):
+        if st.button("📂 Load from Cache", type="primary", use_container_width=True):
+            with st.spinner(f"Loading {EMBEDDING_MODEL_NAME} from local cache..."):
                 try:
                     st.session_state.embedding_model = get_embedding_model()
                     st.success("✅ Embedding model loaded successfully!")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"❌ Failed to load model: {e}")
-                    st.info("💡 Check your internet connection to huggingface.co")
+                    st.error(f"❌ Failed to load model: {type(e).__name__}: {e}")
+                    with st.expander("🔍 Fix: Pre-download the model first"):
+                        st.markdown(f"""
+                        **The model must be pre-downloaded to the local cache.**
+                        
+                        Run this once (with internet):
+                        ```bash
+                        python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('{EMBEDDING_MODEL_NAME}')"
+                        ```
+                        
+                        Or set custom cache:
+                        ```bash
+                        export HF_HOME=/path/to/cache
+                        python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('{EMBEDDING_MODEL_NAME}')"
+                        ```
+                        
+                        Then restart the app.
+                        """)
     
-    st.caption(f"Model: `{EMBEDDING_MODEL_NAME}` (local, CPU)")
+    st.caption(f"Model: `{EMBEDDING_MODEL_NAME}` (auto GPU/CPU)")
     
     st.divider()
     
