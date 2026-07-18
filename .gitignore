@@ -1,2 +1,5 @@
 __pycache__/
 van1/
+.streamlit/
+mcp.log
+streamlit.log
