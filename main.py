@@ -18,11 +18,30 @@ st.set_page_config(page_title="ChatRAG", page_icon="💬", layout="wide")
 # Custom CSS
 st.markdown("""
 <style>
+    /* Input field styling */
     .stTextInput > div > div > input {
-        background-color: #f0f2f6;
+        background-color: #f0f2f6 !important;
+        color: #000000 !important;
     }
-    .sidebar .sidebar-content {
-        background-color: #f8f9fa;
+    
+    /* Sidebar Background - Light Gray */
+    [data-testid="stSidebar"] {
+        background-color: #f8f9fa !important;
+    }
+    
+    /* Sidebar Content Area - White (Fixed from invalid #0000) */
+    [data-testid="stSidebarContent"] {
+        background-color: #B0E0E6 !important;
+    }
+    
+    /* Force all text inside sidebar to be black for readability on light bg */
+    [data-testid="stSidebar"] * {
+        color: #000000 !important;
+    }
+    
+    /* Main chat area text */
+    .stChatMessage {
+        color: #000000 !important;
     }
 </style>
 """, unsafe_allow_html=True)

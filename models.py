@@ -1,4 +1,3 @@
-# models.py
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import ChatOpenAI
 import requests
@@ -14,19 +13,23 @@ DEFAULT_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "llama-3.2-1b-instruct")
 EMBEDDING_MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
 HF_CACHE = os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
 
+
 def _find_local_model_path():
     """Find pre-downloaded model in HF cache."""
     cache_dir = Path(HF_CACHE) / "hub"
     if not cache_dir.exists():
         return None
-    # Look for the model snapshot - match directory name exactly (no trailing --)
+    
+    # Look for the model snapshot - match directory name exactly
     model_name_safe = EMBEDDING_MODEL_ID.replace('/', '--')
     model_dirs = list(cache_dir.glob(f"models--{model_name_safe}*"))
+    
     for model_dir in model_dirs:
         snapshots = list((model_dir / "snapshots").glob("*"))
         if snapshots:
             return str(snapshots[0])
     return None
+
 
 def get_embedding_model():
     """Initializes the embedding model from local cache, no download."""
@@ -61,6 +64,7 @@ def get_embedding_model():
         f"Or set HF_HOME to your cache directory."
     )
 
+
 def get_llm(api_base=None, api_key=None, model_name=None) -> ChatOpenAI:
     """Initializes the LLM with configurable parameters."""
     return ChatOpenAI(
@@ -69,13 +73,22 @@ def get_llm(api_base=None, api_key=None, model_name=None) -> ChatOpenAI:
         model=model_name or DEFAULT_MODEL_NAME,
     )
 
+
 def verify_llm_model_availability(llm_client: ChatOpenAI):
     """
     Verifies that the specified model is available at the API endpoint.
     Raises an exception if the model is not found or the API is unreachable.
     """
-    model_to_check = llm_client.model
-    api_base = str(llm_client.base_url).rstrip("/")
+    # FIX: Use .model_name and handle base_url/openai_api_base compatibility
+    model_to_check = llm_client.model_name
+    
+    # In some versions of langchain-openai, it's 'openai_api_base', in others 'base_url'
+    api_base = getattr(llm_client, 'base_url', None) or getattr(llm_client, 'openai_api_base', None)
+    
+    if not api_base:
+        raise ValueError("Could not determine API base URL from LLM client.")
+
+    api_base = str(api_base).rstrip("/")
     
     # Construct the correct URL for the /models endpoint
     models_url = f"{api_base}/models"
