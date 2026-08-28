@@ -3,10 +3,14 @@ from models import get_embedding_model, get_llm, verify_llm_model_availability, 
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_classic.chains.retrieval_qa.base import RetrievalQA
 from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
 import tempfile
 import os
+
+def format_documents(documents):
+    return "\n\n".join(document.page_content for document in documents)
 
 # Page config
 st.set_page_config(page_title="ChatRAG", page_icon="💬", layout="wide")
@@ -89,7 +93,7 @@ with st.sidebar:
     hf_cache = os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
     from pathlib import Path
     cache_dir = Path(hf_cache) / "hub"
-    model_dirs = list(cache_dir.glob(f"models--{EMBEDDING_MODEL_NAME.replace('/', '--')}--*")) if cache_dir.exists() else []
+    model_dirs = list(cache_dir.glob(f"models--{EMBEDDING_MODEL_NAME.replace('/', '--')}*")) if cache_dir.exists() else []
     if model_dirs:
         st.caption(f"📁 Found in cache: `{hf_cache}`")
     else:
@@ -197,12 +201,13 @@ Question: {question}
 Answer:"""
             PROMPT = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
             
-            st.session_state.qa_chain = RetrievalQA.from_chain_type(
-                llm=st.session_state.llm,
-                chain_type="stuff",
-                retriever=vectorstore.as_retriever(search_kwargs={"k": 3}),
-                chain_type_kwargs={"prompt": PROMPT},
-                return_source_documents=True
+            retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+            st.session_state.retriever = retriever
+            st.session_state.qa_chain = (
+                {"context": retriever | format_documents, "question": RunnablePassthrough()}
+                | PROMPT
+                | st.session_state.llm
+                | StrOutputParser()
             )
             st.session_state.last_files = [f.name for f in uploaded_files]
             st.success(f"✅ Processed {len(uploaded_files)} document(s) into {len(texts)} chunks")
@@ -234,9 +239,8 @@ if prompt := st.chat_input("Ask a question about your documents..."):
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
-                    result = st.session_state.qa_chain({"query": prompt})
-                    answer = result["result"]
-                    sources = result.get("source_documents", [])
+                    answer = st.session_state.qa_chain.invoke(prompt)
+                    sources = st.session_state.retriever.invoke(prompt)
                     
                     st.markdown(answer)
                     

@@ -15,8 +15,8 @@ This project uses Python for both front-end (Streamlit) and back-end, connecting
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/Angad2005/ChatPDF.git
-   cd ChatPDF
+   git clone https://github.com/Angad2005/ChatRAG.git
+   cd ChatRAG
    ```
 
 2. **Create and activate a virtual environment** (recommended)
@@ -31,9 +31,9 @@ This project uses Python for both front-end (Streamlit) and back-end, connecting
    pip install -r requirements.txt
    ```
 
-4. **Install PyTorch with CUDA support** (for GPU embeddings)
+4. **Install PyTorch with CUDA support** (optional, for GPU embeddings)
    ```bash
-   pip install torch --index-url https://download.pytorch.org/whl/cu121
+   pip install --upgrade torch --index-url https://download.pytorch.org/whl/cu121
    ```
 
 5. **Pre-download the embedding model** (one-time, requires internet)
@@ -74,10 +74,10 @@ The application opens at `http://localhost:8501`.
 
 4. **Ask Questions**: Chat with your documents in the main area
 
-5. **Generate Summaries** (requires MCP service):
-   - Select format (PDF/DOCX)
-   - Click **Create Summary Document**
-   - Download the result
+5. **Generate Summaries** (optional MCP service):
+   - Send document text to `POST /summarize-and-create-document/`
+   - Set `doc_type` to `pdf` or `docx`
+   - Download the returned document
 
 6. **Reset**: **🗑️ Clear Chat** clears history and vector store
 

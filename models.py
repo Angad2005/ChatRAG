@@ -1,12 +1,12 @@
 # models.py
-from langchain_community.llms import OpenAI
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import ChatOpenAI
 import requests
 import os
 from pathlib import Path
 
 # Default configuration (can be overridden by environment variables or GUI)
-DEFAULT_API_BASE = os.getenv("LLM_API_BASE", "http://192.168.96.1:1234/v1")
+DEFAULT_API_BASE = os.getenv("LLM_API_BASE", "http://localhost:1234/v1")
 DEFAULT_API_KEY = os.getenv("LLM_API_KEY", "not-needed")
 DEFAULT_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "llama-3.2-1b-instruct")
 
@@ -45,16 +45,12 @@ def get_embedding_model():
     # Try to load from local cache first
     local_path = _find_local_model_path()
     if local_path:
-        try:
-            model_kwargs = {'device': device}
-            return HuggingFaceEmbeddings(
-                model_name=local_path,
-                model_kwargs=model_kwargs,
-                encode_kwargs=encode_kwargs
-            )
-        except Exception as e:
-            # If local load fails, fall through to error
-            pass
+        model_kwargs = {'device': device}
+        return HuggingFaceEmbeddings(
+            model_name=local_path,
+            model_kwargs=model_kwargs,
+            encode_kwargs=encode_kwargs
+        )
     
     # Not cached or failed to load - raise clear error
     raise RuntimeError(
@@ -65,24 +61,24 @@ def get_embedding_model():
         f"Or set HF_HOME to your cache directory."
     )
 
-def get_llm(api_base=None, api_key=None, model_name=None):
+def get_llm(api_base=None, api_key=None, model_name=None) -> ChatOpenAI:
     """Initializes the LLM with configurable parameters."""
-    return OpenAI(
-        openai_api_key=api_key or DEFAULT_API_KEY,
-        openai_api_base=api_base or DEFAULT_API_BASE,
-        model_name=model_name or DEFAULT_MODEL_NAME,
+    return ChatOpenAI(
+        api_key=api_key or DEFAULT_API_KEY,
+        base_url=api_base or DEFAULT_API_BASE,
+        model=model_name or DEFAULT_MODEL_NAME,
     )
 
-def verify_llm_model_availability(llm_client: OpenAI):
+def verify_llm_model_availability(llm_client: ChatOpenAI):
     """
     Verifies that the specified model is available at the API endpoint.
     Raises an exception if the model is not found or the API is unreachable.
     """
-    model_to_check = llm_client.model_name
-    api_base = llm_client.openai_api_base
+    model_to_check = llm_client.model
+    api_base = str(llm_client.base_url).rstrip("/")
     
     # Construct the correct URL for the /models endpoint
-    models_url = api_base.replace("/v1", "") + "/v1/models"
+    models_url = f"{api_base}/models"
     
     try:
         response = requests.get(models_url, timeout=10)
@@ -105,6 +101,5 @@ def verify_llm_model_availability(llm_client: OpenAI):
             f"Failed to connect to the LLM API at {models_url}. "
             "Please ensure the server is running and accessible."
         ) from e
-    except Exception as e:
-        # Re-raise other exceptions with context
-        raise RuntimeError(f"An unexpected error occurred while verifying the LLM model: {e}") from e
+    except ValueError:
+        raise
