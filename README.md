@@ -1,18 +1,17 @@
 ---
 title: ChatRAG - AI Knowledge Base Agent
-emoji: 🤖
+emoji: 
 colorFrom: blue
 colorTo: purple
-sdk: streamlit
-sdk_version: 1.41.1
-app_file: main.py
+sdk: gradio
+app_file: app.py
 pinned: false
 license: mit
 short_description: Chat with your PDFs, DOCX, and TXT files using RAG and any OpenAI-compatible LLM.
 tags:
 - rag
 - llm
-- streamlit
+- gradio
 - langchain
 - document-chat
 - pdf
@@ -21,22 +20,22 @@ tags:
 # 🚀 ChatRAG (Chatbot AI Agent & Knowledge Base Injector)
 
 <div align="center">
-  <img src="https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="Streamlit">
+  <img src="https://img.shields.io/badge/Gradio-F97316?style=for-the-badge&logo=gradio&logoColor=white" alt="Gradio">
   <img src="https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white" alt="LangChain">
   <img src="https://img.shields.io/badge/HuggingFace-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black" alt="HuggingFace">
 </div>
 
-> **LLM-powered tool for working with your data files.** Makes your LLM more knowledgeable using document injection and Retrieval-Augmented Generation (RAG).
+> **LLM-powered tool for working with your data files.** Makes your LLM more knowledgeable using document injection and Retrieval-Augmented Generation (RAG). Built with Gradio for a modern, responsive interface.
 
 ## 🌟 Features
 
 - 📄 **Multi-Format Support**: Upload PDF, DOCX, and TXT files.
-- 🧠 **Smart RAG**: Uses FAISS vector store and SentenceTransformers for accurate retrieval.
+-  **Smart RAG**: Uses FAISS vector store and SentenceTransformers for accurate retrieval.
 - 🔌 **Flexible LLM Backend**: Connect to **any** OpenAI-compatible endpoint:
   - ☁️ Cloud APIs: OpenAI, NVIDIA NIM, Together AI, Groq.
-  - 🏠 Local Servers: Ollama, LM Studio, vLLM (if running on same network/machine).
+  - 🏠 Local Servers: Ollama, LM Studio, vLLM (requires network tunneling like ngrok).
 - ⚡ **GPU Accelerated**: Auto-detects CUDA/MPS for faster embedding generation.
-- 🔒 **Private**: Your documents are processed locally in the session memory.
+- 🔒 **Private**: Your documents are processed locally in session memory.
 
 ## 🚀 Quick Start
 
@@ -51,19 +50,19 @@ In the sidebar (**🤖 LLM Settings**), enter your provider details:
 | **Ollama** (Local) | `http://localhost:11434/v1` | `not-needed` | `llama3.1` |
 | **LM Studio** (Local) | `http://localhost:1234/v1` | `not-needed` | `local-model` |
 
-> **Note for Hugging Face Spaces Users:** Since this Space runs in the cloud, it cannot connect to `localhost` on your computer. To use local models like Ollama/LM Studio, you must expose them via a tunnel (like ngrok) or use a Cloud API provider listed above.
+> **⚠️ Note for Hugging Face Spaces Users:** This Space runs in a cloud container. It **cannot** directly access `localhost` on your personal computer. To use local models like Ollama or LM Studio, you must expose them via a secure tunnel (e.g., ngrok, cloudflare) or use a Cloud API provider listed above.
 
 ### 2. Load Embedding Model
 Click **📂 Load from Cache** in the sidebar. This loads the lightweight `all-MiniLM-L6-v2` model for creating vector embeddings of your documents.
 
 ### 3. Upload & Chat
-1. Upload your `.pdf`, `.docx`, or `.txt` files.
-2. Wait for the "Processing Complete" message.
+1. Upload your `.pdf`, `.docx`, or `.txt` files using the file uploader.
+2. Click **🔧 Process Documents** to index them into the vector store.
 3. Ask questions about your documents in the chat box!
 
 ## 🛠️ Technical Details
 
-- **Frontend**: Streamlit
+- **Frontend**: Gradio
 - **Backend**: Python / LangChain
 - **Vector Store**: FAISS (Facebook AI Similarity Search)
 - **Embeddings**: SentenceTransformers (`all-MiniLM-L6-v2`)
@@ -85,5 +84,8 @@ source van1/bin/activate  # Linux/Mac
 # Install dependencies
 pip install -r requirements.txt
 
-# Run the app
-STREAMLIT_SERVER_FILE_WATCHER_TYPE=none streamlit run main.py
+# Optional: Install PyTorch with CUDA support for GPU embeddings
+# pip install --upgrade torch --index-url https://download.pytorch.org/whl/cu121
+
+# Run the Gradio app
+python app.py
