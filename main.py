@@ -286,4 +286,3 @@ if prompt := st.chat_input("Ask a question about your documents..."):
 # Footer
 st.divider()
 st.caption("💡 Configure your LLM endpoint in the sidebar. Works with LM Studio, vLLM, Ollama (with OpenAI compat), or any OpenAI-compatible API.")
-```[cite: 1]
