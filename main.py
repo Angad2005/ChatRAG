@@ -1,13 +1,24 @@
+import os
+import tempfile
+from pathlib import Path
 import streamlit as st
-from models import get_embedding_model, get_llm, verify_llm_model_availability, DEFAULT_API_BASE, DEFAULT_API_KEY, DEFAULT_MODEL_NAME
 from langchain_community.vectorstores import FAISS
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
-import tempfile
-import os
+
+from models import (
+    get_embedding_model,
+    get_llm,
+    verify_llm_model_availability,
+    DEFAULT_API_BASE,
+    DEFAULT_API_KEY,
+    DEFAULT_MODEL_NAME,
+    EMBEDDING_MODEL_ID,
+    HF_CACHE,
+)
 
 def format_documents(documents):
     return "\n\n".join(document.page_content for document in documents)
@@ -29,7 +40,7 @@ st.markdown("""
         background-color: #f8f9fa !important;
     }
     
-    /* Sidebar Content Area - White (Fixed from invalid #0000) */
+    /* Sidebar Content Area */
     [data-testid="stSidebarContent"] {
         background-color: #B0E0E6 !important;
     }
@@ -102,21 +113,16 @@ with st.sidebar:
     
     st.divider()
     
-    # Embedding Model - Load from Local Cache Only
+    # Embedding Model Section - Supports Local Cache and Hugging Face API
     st.subheader("📦 Embedding Model")
     
-    EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-    
     # Show cache status
-    import os
-    hf_cache = os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
-    from pathlib import Path
-    cache_dir = Path(hf_cache) / "hub"
-    model_dirs = list(cache_dir.glob(f"models--{EMBEDDING_MODEL_NAME.replace('/', '--')}*")) if cache_dir.exists() else []
+    cache_dir = Path(HF_CACHE) / "hub"
+    model_dirs = list(cache_dir.glob(f"models--{EMBEDDING_MODEL_ID.replace('/', '--')}*")) if cache_dir.exists() else []
     if model_dirs:
-        st.caption(f"📁 Found in cache: `{hf_cache}`")
+        st.caption(f"📁 Found in cache: `{HF_CACHE}`")
     else:
-        st.caption(f"📁 Cache: `{hf_cache}` (not found)")
+        st.caption(f"📁 Cache: `{HF_CACHE}` (not found)")
     
     # Check if model is loaded
     if "embedding_model" in st.session_state and st.session_state.embedding_model is not None:
@@ -126,33 +132,29 @@ with st.sidebar:
             st.rerun()
     else:
         st.warning("⚠️ Embedding model not loaded")
-        if st.button("📂 Load from Cache", type="primary", use_container_width=True):
-            with st.spinner(f"Loading {EMBEDDING_MODEL_NAME} from local cache..."):
-                try:
-                    st.session_state.embedding_model = get_embedding_model()
-                    st.success("✅ Embedding model loaded successfully!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Failed to load model: {type(e).__name__}: {e}")
-                    with st.expander("🔍 Fix: Pre-download the model first"):
-                        st.markdown(f"""
-                        **The model must be pre-downloaded to the local cache.**
-                        
-                        Run this once (with internet):
-                        ```bash
-                        python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('{EMBEDDING_MODEL_NAME}')"
-                        ```
-                        
-                        Or set custom cache:
-                        ```bash
-                        export HF_HOME=/path/to/cache
-                        python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('{EMBEDDING_MODEL_NAME}')"
-                        ```
-                        
-                        Then restart the app.
-                        """)
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("📂 Local Cache", use_container_width=True):
+                with st.spinner("Loading from local cache..."):
+                    try:
+                        st.session_state.embedding_model = get_embedding_model(allow_download=False)
+                        st.success("✅ Model loaded from local cache!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Cache load failed: {e}")
+        
+        with col2:
+            if st.button("🌐 HuggingFace API", type="primary", use_container_width=True):
+                with st.spinner(f"Loading {EMBEDDING_MODEL_ID} via HuggingFace..."):
+                    try:
+                        st.session_state.embedding_model = get_embedding_model(allow_download=True)
+                        st.success("✅ Model loaded via HuggingFace!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ HF API load failed: {e}")
     
-    st.caption(f"Model: `{EMBEDDING_MODEL_NAME}` (auto GPU/CPU)")
+    st.caption(f"Model: `{EMBEDDING_MODEL_ID}` (auto GPU/CPU)")
     
     st.divider()
     
@@ -182,7 +184,7 @@ uploaded_files = st.file_uploader(
 # Process uploaded files - only if embedding model is loaded
 if uploaded_files and st.session_state.get("llm_connected"):
     if "embedding_model" not in st.session_state or st.session_state.embedding_model is None:
-        st.warning("⚠️ Please download the embedding model first (sidebar)")
+        st.warning("⚠️ Please load the embedding model first (sidebar)")
     elif "qa_chain" not in st.session_state or st.session_state.get("last_files") != [f.name for f in uploaded_files]:
         with st.spinner("Processing documents..."):
             # Load documents
@@ -245,7 +247,7 @@ if prompt := st.chat_input("Ask a question about your documents..."):
     if not st.session_state.get("llm_connected"):
         st.error("⚠️ Please configure and connect to an LLM first (sidebar)")
     elif "embedding_model" not in st.session_state or st.session_state.embedding_model is None:
-        st.error("⚠️ Please download the embedding model first (sidebar)")
+        st.error("⚠️ Please load the embedding model first (sidebar)")
     elif "qa_chain" not in st.session_state:
         st.error("⚠️ Please upload at least one document first")
     else:
@@ -284,3 +286,4 @@ if prompt := st.chat_input("Ask a question about your documents..."):
 # Footer
 st.divider()
 st.caption("💡 Configure your LLM endpoint in the sidebar. Works with LM Studio, vLLM, Ollama (with OpenAI compat), or any OpenAI-compatible API.")
+```[cite: 1]

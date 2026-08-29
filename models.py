@@ -4,7 +4,7 @@ import requests
 import os
 from pathlib import Path
 
-# Default configuration (can be overridden by environment variables or GUI)
+# Default configuration
 DEFAULT_API_BASE = os.getenv("LLM_API_BASE", "http://localhost:1234/v1")
 DEFAULT_API_KEY = os.getenv("LLM_API_KEY", "not-needed")
 DEFAULT_MODEL_NAME = os.getenv("LLM_MODEL_NAME", "llama-3.2-1b-instruct")
@@ -31,8 +31,12 @@ def _find_local_model_path():
     return None
 
 
-def get_embedding_model():
-    """Initializes the embedding model from local cache, no download."""
+def get_embedding_model(allow_download: bool = True):
+    """
+    Initializes the embedding model.
+    1. Checks local cache snapshot first.
+    2. Falls back to downloading via Hugging Face API if allow_download is True.
+    """
     import torch
     
     # Auto-detect device: CUDA > MPS > CPU
@@ -44,24 +48,32 @@ def get_embedding_model():
         device = "cpu"
     
     encode_kwargs = {'normalize_embeddings': False}
+    model_kwargs = {'device': device}
     
-    # Try to load from local cache first
+    # 1. Try to load from local cache snapshot first
     local_path = _find_local_model_path()
     if local_path:
-        model_kwargs = {'device': device}
         return HuggingFaceEmbeddings(
             model_name=local_path,
             model_kwargs=model_kwargs,
             encode_kwargs=encode_kwargs
         )
     
-    # Not cached or failed to load - raise clear error
+    # 2. Fallback to Hugging Face API download if enabled
+    if allow_download:
+        try:
+            return HuggingFaceEmbeddings(
+                model_name=EMBEDDING_MODEL_ID,
+                model_kwargs=model_kwargs,
+                encode_kwargs=encode_kwargs
+            )
+        except Exception as e:
+            raise RuntimeError(f"Failed to fetch model from Hugging Face Hub: {e}") from e
+
+    # 3. If offline/cache-only mode failed
     raise RuntimeError(
         f"Embedding model not found in local cache ({HF_CACHE}).\n"
-        f"Pre-download it first:\n"
-        f"  python -c \"from sentence_transformers import SentenceTransformer; "
-        f"SentenceTransformer('{EMBEDDING_MODEL_ID}')\"\n"
-        f"Or set HF_HOME to your cache directory."
+        f"Pre-download it first or enable online download."
     )
 
 
@@ -75,33 +87,24 @@ def get_llm(api_base=None, api_key=None, model_name=None) -> ChatOpenAI:
 
 
 def verify_llm_model_availability(llm_client: ChatOpenAI):
-    """
-    Verifies that the specified model is available at the API endpoint.
-    Raises an exception if the model is not found or the API is unreachable.
-    """
-    # FIX: Use .model_name and handle base_url/openai_api_base compatibility
+    """Verifies that the specified model is available at the API endpoint."""
     model_to_check = llm_client.model_name
-    
-    # In some versions of langchain-openai, it's 'openai_api_base', in others 'base_url'
     api_base = getattr(llm_client, 'base_url', None) or getattr(llm_client, 'openai_api_base', None)
     
     if not api_base:
         raise ValueError("Could not determine API base URL from LLM client.")
 
     api_base = str(api_base).rstrip("/")
-    
-    # Construct the correct URL for the /models endpoint
     models_url = f"{api_base}/models"
     
     try:
         response = requests.get(models_url, timeout=10)
-        response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
+        response.raise_for_status()
         
         available_models = response.json().get("data", [])
         available_model_ids = [model.get("id") for model in available_models]
         
         if model_to_check not in available_model_ids:
-            # Provide a helpful error message if the model is not in the list
             error_message = (
                 f"Model '{model_to_check}' is not available at the endpoint.\n"
                 f"Available models are: {available_model_ids}"
@@ -109,7 +112,6 @@ def verify_llm_model_availability(llm_client: ChatOpenAI):
             raise ValueError(error_message)
             
     except requests.exceptions.RequestException as e:
-        # Catch any network errors (connection, timeout, etc.)
         raise ConnectionError(
             f"Failed to connect to the LLM API at {models_url}. "
             "Please ensure the server is running and accessible."
