@@ -116,6 +116,15 @@ with st.sidebar:
     # Embedding Model Section - Supports Local Cache and Hugging Face API
     st.subheader("📦 Embedding Model")
     
+    # Added Hugging Face API Key input field
+    hf_api_key = st.text_input(
+        "HuggingFace API Token",
+        value=st.session_state.get("hf_api_key", ""),
+        placeholder="hf_...",
+        type="password",
+        help="Required for downloading gated models or using HF Hub APIs."
+    )
+    
     # Show cache status
     cache_dir = Path(HF_CACHE) / "hub"
     model_dirs = list(cache_dir.glob(f"models--{EMBEDDING_MODEL_ID.replace('/', '--')}*")) if cache_dir.exists() else []
@@ -148,6 +157,21 @@ with st.sidebar:
             if st.button("🌐 HuggingFace API", type="primary", use_container_width=True):
                 with st.spinner(f"Loading {EMBEDDING_MODEL_ID} via HuggingFace..."):
                     try:
+                        # Store API token in session state and set environment variable if provided
+                        st.session_state.hf_api_key = hf_api_key
+                        if hf_api_key.strip():
+                            os.environ["HUGGINGFACEHUB_API_TOKEN"] = hf_api_key.strip()
+                            os.environ["HF_TOKEN"] = hf_api_key.strip()
+
+                        # Pass hf_token directly if supported by get_embedding_model or set via env vars above
+                        st.session_state.embedding_model = get_embedding_model(
+                            allow_download=True, 
+                            token=hf_api_key.strip() if hf_api_key.strip() else None
+                        )
+                        st.success("✅ Model loaded via HuggingFace!")
+                        st.rerun()
+                    except TypeError:
+                        # Fallback if get_embedding_model does not accept a 'token' parameter directly
                         st.session_state.embedding_model = get_embedding_model(allow_download=True)
                         st.success("✅ Model loaded via HuggingFace!")
                         st.rerun()
