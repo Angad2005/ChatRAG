@@ -1,27 +1,6 @@
 # Deployment
 https://angad2005-chatrag-main-sirokb.streamlit.app/
 
-
----
-title: ChatRAG - AI Knowledge Base Agent
-emoji: 🤖
-colorFrom: blue
-colorTo: purple
-sdk: streamlit
-sdk_version: 1.41.1
-app_file: main.py
-pinned: false
-license: mit
-short_description: Chat with your PDFs, DOCX, and TXT files using RAG and any OpenAI-compatible LLM.
-tags:
-- rag
-- llm
-- streamlit
-- langchain
-- document-chat
-- pdf
----
-
 # 🚀 ChatRAG (Chatbot AI Agent & Knowledge Base Injector)
 
 <div align="center">
