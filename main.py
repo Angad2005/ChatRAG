@@ -343,63 +343,63 @@ st.write("")
 # ---------------------------------------------------------
 # Document Ingestion Area
 # ---------------------------------------------------------
-with st.expander("📂 **Document Ingestion & Knowledge Base**", expanded=not bool(st.session_state.get("last_files"))):
-    uploaded_files = st.file_uploader(
-        "Upload files for context chunking",
-        type=["pdf", "docx", "txt"],
-        accept_multiple_files=True,
-        help="Supports PDF, DOCX, and Plain Text files"
-    )
+st.subheader("📂 Document Ingestion & Knowledge Base")
+uploaded_files = st.file_uploader(
+    "Upload files for context chunking",
+    type=["pdf", "docx", "txt"],
+    accept_multiple_files=True,
+    help="Supports PDF, DOCX, and Plain Text files"
+)
 
-    if uploaded_files and st.session_state.get("llm_connected"):
-        if "embedding_model" not in st.session_state or st.session_state.embedding_model is None:
-            st.warning("⚠️ Please load an Embedding Model from the sidebar first.")
-        elif "qa_chain" not in st.session_state or st.session_state.get("last_files") != [f.name for f in uploaded_files]:
-            with st.status("🔄 Building FAISS Vector Index...", expanded=True) as status:
-                st.write("Extracting text streams...")
-                documents = []
-                for uploaded_file in uploaded_files:
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as tmp_file:
-                        tmp_file.write(uploaded_file.getvalue())
-                        tmp_path = tmp_file.name
-                    
-                    try:
-                        if uploaded_file.name.endswith(".pdf"):
-                            loader = PyPDFLoader(tmp_path)
-                        elif uploaded_file.name.endswith(".docx"):
-                            loader = Docx2txtLoader(tmp_path)
-                        else:
-                            loader = TextLoader(tmp_path)
-                        documents.extend(loader.load())
-                    finally:
-                        os.unlink(tmp_path)
+if uploaded_files and st.session_state.get("llm_connected"):
+    if "embedding_model" not in st.session_state or st.session_state.embedding_model is None:
+        st.warning("⚠️ Please load an Embedding Model from the sidebar first.")
+    elif "qa_chain" not in st.session_state or st.session_state.get("last_files") != [f.name for f in uploaded_files]:
+        with st.status("🔄 Building FAISS Vector Index...", expanded=True) as status:
+            st.write("Extracting text streams...")
+            documents = []
+            for uploaded_file in uploaded_files:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded_file.name)[1]) as tmp_file:
+                    tmp_file.write(uploaded_file.getvalue())
+                    tmp_path = tmp_file.name
+                
+                try:
+                    if uploaded_file.name.endswith(".pdf"):
+                        loader = PyPDFLoader(tmp_path)
+                    elif uploaded_file.name.endswith(".docx"):
+                        loader = Docx2txtLoader(tmp_path)
+                    else:
+                        loader = TextLoader(tmp_path)
+                    documents.extend(loader.load())
+                finally:
+                    os.unlink(tmp_path)
 
-                st.write(f"Generating recursive chunks (size: 1000, overlap: 200)...")
-                text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-                texts = text_splitter.split_documents(documents)
+            st.write(f"Generating recursive chunks (size: 1000, overlap: 200)...")
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+            texts = text_splitter.split_documents(documents)
 
-                st.write(f"Embedding {len(texts)} chunks into FAISS vector space...")
-                vectorstore = FAISS.from_documents(texts, st.session_state.embedding_model)
+            st.write(f"Embedding {len(texts)} chunks into FAISS vector space...")
+            vectorstore = FAISS.from_documents(texts, st.session_state.embedding_model)
 
-                prompt_template = """Use the following pieces of context to answer the question at the end. 
+            prompt_template = """Use the following pieces of context to answer the question at the end. 
 If you don't know the answer, just say that you don't know, don't try to make up an answer.
 
 {context}
 
 Question: {question}
 Answer:"""
-                PROMPT = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
+            PROMPT = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
 
-                retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
-                st.session_state.retriever = retriever
-                st.session_state.qa_chain = (
-                    {"context": retriever | format_documents, "question": RunnablePassthrough()}
-                    | PROMPT
-                    | st.session_state.llm
-                    | StrOutputParser()
-                )
-                st.session_state.last_files = [f.name for f in uploaded_files]
-                status.update(label=f"✅ Successfully indexed {len(uploaded_files)} file(s) into {len(texts)} chunks!", state="complete", expanded=False)
+            retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+            st.session_state.retriever = retriever
+            st.session_state.qa_chain = (
+                {"context": retriever | format_documents, "question": RunnablePassthrough()}
+                | PROMPT
+                | st.session_state.llm
+                | StrOutputParser()
+            )
+            st.session_state.last_files = [f.name for f in uploaded_files]
+            status.update(label=f"✅ Successfully indexed {len(uploaded_files)} file(s) into {len(texts)} chunks!", state="complete", expanded=False)
 
 # ---------------------------------------------------------
 # Chat Interface
